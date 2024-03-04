@@ -1,0 +1,624 @@
+#include <U8g2lib.h>
+#include <SPI.h>
+
+//ENCODERS + DISPLAY + UART
+
+//------------------------------------------------------------------------------------
+//  DEFINES
+//------------------------------------------------------------------------------------
+//encoder pins
+#define IENCODERA 1 
+#define IENCODERB 42   
+#define IPRESS 2      
+
+#define UENCODERA 37   
+#define UENCODERB 35   
+#define UPRESS 36      
+
+//display pins
+#define CLOCKDISPLAY 10
+#define DATADISPLAY 14
+#define CSDISPLAY 12
+#define DCDISPLAY 13
+#define RESETDISPLAY 11
+
+//cosel pins
+#define U1ADRS 7
+#define U2ADRS 6
+#define U3ADRS 5
+
+#define UARTTX 17
+#define UARTRX 18
+#define BAUDRATE 2400
+#define BUFFERSIZE 1024
+
+HardwareSerial CoselSerial(1);
+
+//------------------------------------------------------------------------------------
+//  CONSTANTS
+//------------------------------------------------------------------------------------
+
+const int32_t iRated = 200000;
+const int32_t uRated = 5000;
+const long interval = 50;
+
+
+const uint8_t MONVOUT [4] = {0x1E, 0x08, 0x01, 0x00};
+const uint8_t MONIOUT [4] = {0x1E, 0x08, 0x05, 0x00};
+const uint8_t SETCC [4] = {0x0C, 0, 0, 0};
+const uint8_t SETCCMODE [4] = {0x1E, 0x09, 0xA, 0x01};
+const uint8_t SETVOUT [4] = {0x0A, 0, 0, 0};
+const uint8_t CTLREMON [4] = {0x1E, 0x08, 0x1C, 0x00};
+const uint8_t CTLREMOFF [4] = {0x1E, 0x08, 0x1C, 0x01};
+
+/*
+const unsigned char epd_bitmap_mp_group [] PROGMEM = {
+  0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xfc,
+  0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xfe,
+  0xc7, 0x06, 0x00, 0x06, 0x04, 0x06, 0x04, 0xc7, 0x20, 0xc0, 0xf8, 0x08, 0x0c, 0x19, 0xe8, 0x0e,
+  0x86, 0x24, 0x79, 0xc4, 0xe4, 0xe4, 0xe4, 0xc6, 0x4f, 0x9c, 0x71, 0xf3, 0xc9, 0xc9, 0xc9, 0xce,
+  0x86, 0x24, 0xf9, 0xc9, 0xe4, 0xe1, 0xe4, 0x86, 0x0f, 0x9c, 0xf3, 0xf3, 0xc3, 0xc9, 0xc9, 0xce,
+  0x84, 0x21, 0xf8, 0x09, 0xe4, 0x89, 0xe4, 0x84, 0x80, 0x80, 0xf2, 0x10, 0x13, 0xcb, 0xc9, 0x1e,
+  0x85, 0x29, 0xf8, 0x19, 0xe5, 0x19, 0xe4, 0x25, 0x81, 0x81, 0xe6, 0x10, 0x33, 0xc3, 0xc2, 0x3e,
+  0xa1, 0x49, 0xf3, 0x89, 0xc9, 0xf9, 0xc4, 0x21, 0x9f, 0xb8, 0xe3, 0x93, 0x13, 0x93, 0x93, 0xfe,
+  0x22, 0x48, 0x13, 0x88, 0x89, 0xf8, 0x8c, 0x63, 0x81, 0x38, 0xe0, 0x27, 0x91, 0x11, 0x13, 0xfe,
+  0x32, 0x4c, 0x13, 0x9c, 0x19, 0xfc, 0x1c, 0x73, 0xc1, 0x39, 0xf0, 0x27, 0x18, 0x78, 0x33, 0xfe,
+  0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xfe,
+  0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xfe,
+  0xff, 0xff, 0xff, 0xff, 0xf5, 0x4a, 0x6e, 0xd7, 0xba, 0xea, 0xe8, 0xdf, 0xab, 0xf4, 0xdf, 0xfe,
+  0xff, 0xff, 0xff, 0xff, 0xf0, 0xe3, 0x02, 0x53, 0xce, 0x6a, 0xb9, 0x46, 0x58, 0xfe, 0x07, 0xfe,
+  0xff, 0xff, 0xff, 0xff, 0xf6, 0x2d, 0x29, 0xc9, 0x89, 0x26, 0xa5, 0x4d, 0xba, 0xaa, 0x57, 0xfe};
+*/
+//------------------------------------------------------------------------------------
+//  VARIABLES
+//------------------------------------------------------------------------------------
+
+int32_t iSet = 0;
+uint8_t iPos = 1;
+int32_t iMeas = 0;
+
+int32_t uSet = 0;
+uint8_t uPos = 0;
+int32_t uMeas = 0;
+
+uint8_t iPulseFlag = 0b0000;
+uint8_t uPulseFlag = 0b0000;
+
+bool iLastPress = false;
+bool iWrongPress = 0;
+uint64_t iPreviousMillis = 0;
+
+bool uLastPress = false;
+bool uWrongPress = 0;
+uint64_t uPreviousMillis = 0;
+
+
+bool cos1Enable = 0;
+bool cos2Enable = 0;
+bool cos3Enable = 0;
+
+uint8_t timeTick = 0;
+
+hw_timer_t *Timer0_Cfg = NULL;
+
+
+//------------------------------------------------------------------------------------
+//  DISPLAY
+//------------------------------------------------------------------------------------
+
+U8G2_ST7565_64128N_1_4W_SW_SPI u8g2(U8G2_R0, CLOCKDISPLAY, DATADISPLAY, CSDISPLAY, DCDISPLAY, RESETDISPLAY);
+TaskHandle_t displayCode;
+
+//------------------------------------------------------------------------------------
+//  INTERRUPTS
+//------------------------------------------------------------------------------------
+
+void IRAM_ATTR Timer0_ISR()
+{
+    timeTick++;
+    if (timeTick >= 10)
+    {
+      timeTick = 0;
+    }
+}
+
+void IRAM_ATTR iRotA()
+{
+  iPulseFlag = iPulseFlag | 0b0001;
+}
+
+void IRAM_ATTR iRotB()
+{
+  iPulseFlag = iPulseFlag | 0b0100;
+}
+
+void IRAM_ATTR iPress()
+{
+  if (!iLastPress)
+  {
+    if(iWrongPress)
+    {
+      iPos++;
+      if (iPos > 5)
+      {
+        iPos = 1;
+      }
+    }
+    iWrongPress = !iWrongPress;
+    iLastPress = true;
+  }
+}
+
+void IRAM_ATTR uRotA()
+{
+  uPulseFlag = uPulseFlag | 0b0001;
+}
+
+void IRAM_ATTR uRotB()
+{
+  uPulseFlag = uPulseFlag | 0b0100;
+}
+
+void IRAM_ATTR uPress()
+{
+  if (!uLastPress)
+  {
+    if(uWrongPress)
+    {
+      uPos++;
+      if (uPos > 3)
+      {
+        uPos = 0;
+      }
+    }
+    uWrongPress = !uWrongPress;
+    uLastPress = true;
+  }
+}
+ 
+//------------------------------------------------------------------------------------
+//  SETUP
+//------------------------------------------------------------------------------------
+
+void setup()
+{
+  Serial.begin(115200);
+  Serial.println("Hej");
+  pinMode(IENCODERA, INPUT_PULLUP);
+  pinMode(IENCODERB, INPUT_PULLUP);
+  //pinMode(IPRESS, INPUT_PULLUP);
+  pinMode(UENCODERA, INPUT_PULLUP);
+  pinMode(UENCODERB, INPUT_PULLUP);
+  //pinMode(UPRESS, INPUT_PULLUP);
+
+  attachInterrupt(IENCODERA, iRotA, CHANGE);
+  attachInterrupt(IENCODERB, iRotB, CHANGE);
+  attachInterrupt(IPRESS, iPress, FALLING);
+  attachInterrupt(UENCODERA, uRotA, CHANGE);
+  attachInterrupt(UENCODERB, uRotB, CHANGE);
+  attachInterrupt(UPRESS, uPress, FALLING);
+
+  Serial.println("är det fel?");
+  pinMode(LED_BUILTIN, OUTPUT);
+  digitalWrite(LED_BUILTIN, LOW);
+  //delay(500);
+  u8g2.begin();
+  u8g2.setContrast(0xBF);
+  u8g2.setDisplayRotation(U8G2_R2);
+  u8g2.setFont(u8g2_font_6x12_tr);
+  // u8g2.drawXBMP(0, 0, 127, 63, epd_bitmap_mp_group);
+  // delay(1000);
+  Serial.println("Hej igen");
+  //delay(5000);
+  CoselSerial.setRxBufferSize(BUFFERSIZE);
+  CoselSerial.begin(BAUDRATE, SERIAL_8E1, UARTRX, UARTTX);
+  xTaskCreatePinnedToCore (display, "displayCode", 10000, NULL, 0, &displayCode, 0);
+  Timer0_Cfg = timerBegin(0, 80, true);
+  timerAttachInterrupt(Timer0_Cfg, &Timer0_ISR, true);
+  timerAlarmWrite(Timer0_Cfg, 1000, true);
+  timerAlarmEnable(Timer0_Cfg);
+  Serial.println("Sista hejet!");
+}
+
+//------------------------------------------------------------------------------------
+//  LOOP 1
+//------------------------------------------------------------------------------------
+
+
+void loop()
+//1st core
+{
+  //timeMessage();
+  //sendMessage(command, CS, address);
+  //Serial.println("HEJ FRÅN LOOPEN");
+  
+  if (iLastPress)
+  {
+    resetButton(&iPreviousMillis, &iLastPress);  
+  }  
+  iReadEncoder();
+  checkBounds(&iSet, &iRated);
+  if (uLastPress)
+  {
+    resetButton(&uPreviousMillis, &uLastPress);
+  }  
+  uReadEncoder();
+  checkBounds(&uSet, &uRated);
+  //Serial.println(iPulseFlag);
+  //delay(100);
+  //Serial.println("HEJDÅ FRÅN LOOPEN");
+}
+
+//------------------------------------------------------------------------------------
+//  LOOP 2
+//------------------------------------------------------------------------------------
+
+void display(void * parameter)
+//2nd core
+{
+  for (;;)
+  {
+    //Serial.println("HEJ FRÅN START AV DISPLAY");
+    /*digitalWrite(LED_BUILTIN, HIGH);
+    delay(100);
+    Serial.println("SLÄCKT");
+    digitalWrite(LED_BUILTIN, LOW);
+    delay(100);
+    Serial.print("TÄNT");
+    */
+    // int iSet = 45635;
+    // int uSet = 432;
+    
+    u8g2.clearBuffer();
+    //Serial.print("BUFFER CLEARED");
+    //delay(500);
+    u8g2.firstPage();
+      do
+      {
+        //Serial.print("FÖRSÖKER SKRIVA PÅ SKÄRMEN");
+        u8g2.setCursor (26,15);
+        u8g2.print ("I:");
+        u8g2.setCursor (10,30);
+        u8g2.setFont(u8g2_font_6x13_tr);
+        printPaddedZeros(&iMeas);
+        u8g2.print(" A");
+        // u8g2.print ("045.00 A");
+        u8g2.setCursor (10,45);
+        u8g2.setFont(u8g2_font_6x12_tr);
+        printPaddedZeros(&iSet);
+        u8g2.print (" A");
+        printPositionI();
+        //delay(1000);
+
+        u8g2.setCursor (90,15);
+        u8g2.setFont(u8g2_font_6x12_tr);
+        u8g2.print ("U:");
+        u8g2.setCursor (75,30);
+        u8g2.setFont(u8g2_font_6x13_tr);
+        printU (&uMeas);
+        //u8g2.print(uMeasFloat, 3);  //byt
+        u8g2.print(" V");
+        // u8g2.print ("0.400 V");
+        u8g2.setCursor (75,45);
+        u8g2.setFont(u8g2_font_6x12_tr);  
+        printU (&uSet);
+        //u8g2.print(uSetFloat, 3);   //byt 
+        u8g2.print(" V");
+        printPositionU();  
+        //delay(1000);
+
+        u8g2.drawLine (0,0,127,0);
+        u8g2.drawLine (127,0,127,63);
+        u8g2.drawLine (0,0,0,63);
+        u8g2.drawLine (0,63,127,63);
+        u8g2.drawLine (63,0,63,63);
+        //Serial.println("FÄRDIG MED DISPLAYTJAFFS");
+      }
+      
+      while ( u8g2.nextPage());
+  }
+}
+
+//------------------------------------------------------------------------------------
+//  FUNCTIONS
+//------------------------------------------------------------------------------------
+
+void timeMessage()
+{
+  if (timeTick % 10 == 0)
+  {
+    uint8_t message [5] = {MONVOUT[0], checkSum(MONVOUT), MONVOUT[1], MONVOUT[2], MONVOUT[3]};
+    for (int i=0; i<5; i++)
+    {
+      message[i] = message[i] + (U1ADRS << 5);
+      CoselSerial.write(message[i]);
+    }
+  }
+  else
+  {
+    while(CoselSerial.available() > 0)
+    {
+      uint8_t rxData;
+      rxData = CoselSerial.read();
+      //Serial.println(rxData);
+    }
+  }
+}
+
+void sendMessage(uint8_t command [], uint8_t CS, uint8_t address)
+{
+  char message [5];
+  message[0] = (address << 5) + command[0];
+  message[1] = (address << 5) + CS;
+  message[2] = (address << 5) + command[1];
+  message[3] = (address << 5) + command[2];
+  message[4] = (address << 5) + command[3];
+  CoselSerial.write(message);
+}
+
+uint8_t checkSum(const uint8_t frame [])
+{
+  uint8_t CS = frame[0] + frame[1] + frame[2] + frame[3];
+  CS = CS & 0x0F;
+  CS = CS << 1;
+  return CS;
+}
+
+//med pekare
+void resetButton (uint64_t *previousMillis, bool *lastPress)
+{
+  unsigned long currentMillis = millis ();
+  if (currentMillis - *previousMillis >= interval)
+  {
+    *previousMillis = currentMillis;
+    *lastPress = false;
+  }
+
+}
+
+void iReadEncoder()
+{
+  //int tal = 0;
+  if (iPulseFlag == 0b0001)
+  {
+    iPulseFlag = 0b0011;
+  }
+  else if (iPulseFlag == 0b0100)
+  {
+    iPulseFlag = 0b1100;
+  }
+  else if (iPulseFlag == 0b0111)
+  {
+    iSet = iSet - pow (10, iPos);
+    iPulseFlag = 0;
+    //tal = tal - 1;
+    //Serial.println(tal);
+  }
+  else if (iPulseFlag == 0b1101)
+  {
+    iSet = iSet + pow (10, iPos);
+    iPulseFlag = 0;
+    //tal = tal + 1;
+    //Serial.println(tal);
+  }
+}
+
+void uReadEncoder()
+{
+  if (uPulseFlag == 0b0001)
+  {
+    uPulseFlag = 0b0011;
+  }
+  else if (uPulseFlag == 0b0100)
+  {
+    uPulseFlag = 0b1100;
+  }
+  else if (uPulseFlag == 0b0111)
+  {
+    uSet = uSet - pow (10, uPos);
+    uPulseFlag = 0;
+  }
+  else if (uPulseFlag == 0b1101)
+  {
+    uSet = uSet + pow (10, uPos);
+    uPulseFlag = 0;
+  }
+}
+
+void checkBounds (int32_t *setValue, const int32_t *ratedValue)
+{
+  if (*setValue > *ratedValue)
+  {
+    *setValue = *ratedValue;
+  }
+  else if (*setValue < 0)
+  {
+    *setValue = 0;
+  }
+}
+
+void printPaddedZeros (int32_t *iValue)
+{
+  int iLength = 0;
+  if (*iValue >= 100000)
+  {
+    iLength = 6;
+  }
+  else
+  {
+    if (*iValue >= 10000 && *iValue < 100000)
+    {
+      iLength = 5;
+    }
+    else if (*iValue < 10000)
+    {
+      iLength = 4;
+    }
+  }
+  float iFloatValue = float(*iValue) / 1000.0;
+  char buf[10];
+  dtostrf(iFloatValue, iLength, 2, buf); 
+  int width = 6;
+  int len = strlen(buf);
+  if (len < width) 
+  {
+    char paddedBuf[10];
+    int zerosToAdd = width - len;
+    for (int i = 0; i < zerosToAdd; i++) 
+    {
+      paddedBuf[i] = '0';
+    }
+    for (int i = 0; i < len; i++) 
+    {
+      paddedBuf[i + zerosToAdd] = buf[i];
+    }
+    paddedBuf[width] = '\0';
+    strcpy(buf, paddedBuf);
+  }
+  u8g2.print(buf);
+  u8g2.sendBuffer();
+}
+
+void printU (int32_t *uValue)
+{
+  float uFloat = float(*uValue)/1000.0;
+  u8g2.print (uFloat, 3);
+}
+
+void printPositionI ()
+{
+  switch (iPos)
+  {
+    case 1:
+      u8g2.setFont(u8g2_font_unifont_t_symbols);
+      u8g2.drawGlyph(39, 52, 0x25B4);
+      u8g2.setFont(u8g2_font_6x12_tr);
+      break;
+
+    case 2:
+      u8g2.setFont(u8g2_font_unifont_t_symbols);
+      u8g2.drawGlyph(33, 52, 0x25B4);
+      u8g2.setFont(u8g2_font_6x12_tr);
+      break;
+
+    case 3:
+      u8g2.setFont(u8g2_font_unifont_t_symbols);
+      u8g2.drawGlyph(21, 52, 0x25B4);
+      u8g2.setFont(u8g2_font_6x12_tr);
+      break;
+
+    case 4:
+      u8g2.setFont(u8g2_font_unifont_t_symbols);
+      u8g2.drawGlyph(15, 52, 0x25B4);
+      u8g2.setFont(u8g2_font_6x12_tr);
+      break;
+
+    case 5:
+      u8g2.setFont(u8g2_font_unifont_t_symbols);
+      u8g2.drawGlyph(9, 52, 0x25B4);
+      u8g2.setFont(u8g2_font_6x12_tr);
+      break;
+
+    default:
+      iPos = 1;
+      u8g2.clearBuffer();
+      break;
+  }
+}
+
+void printPositionU ()
+{
+  switch (uPos)
+  {
+    case 0:
+      u8g2.setFont(u8g2_font_unifont_t_symbols);
+      u8g2.drawGlyph(98, 52, 0x25B4);
+      u8g2.setFont(u8g2_font_6x12_tr);
+      break;
+
+    case 1:
+      u8g2.setFont(u8g2_font_unifont_t_symbols);
+      u8g2.drawGlyph(92, 52, 0x25B4);
+      u8g2.setFont(u8g2_font_6x12_tr);
+      break;
+
+    case 2:
+      u8g2.setFont(u8g2_font_unifont_t_symbols);
+      u8g2.drawGlyph(86, 52, 0x25B4);
+      u8g2.setFont(u8g2_font_6x12_tr);
+      break;
+
+    case 3: 
+      u8g2.setFont(u8g2_font_unifont_t_symbols);
+      u8g2.drawGlyph(74, 52, 0x25B4);
+      u8g2.setFont(u8g2_font_6x12_tr);
+      break;
+
+    default:
+      uPos = 0;
+      u8g2.clearBuffer();
+      break;
+  }
+}
+
+
+/*
+void readEncoder(uint8_t *pulseFlag, int32_t *setValue, uint8_t *posValue) 
+{
+  switch (*pulseFlag) {
+    case 0b0001:
+        *pulseFlag = 0b0011;
+        break;
+    case 0b0100:
+        *pulseFlag = 0b1100;
+        break;
+    case 0b0111:
+        *setValue -= 10 * (*posValue);
+        *pulseFlag = 0;
+        break;
+    case 0b1101:
+        *setValue += 10 * (*posValue);
+        *pulseFlag = 0;
+        break;
+    case 0b0101:
+        *pulseFlag = 0;
+        break;
+    default:
+        return;
+  }
+
+}
+
+void readEncoder (uint8_t *pulseFlag, int32_t *setValue, uint8_t *posValue)
+{
+  if (*pulseFlag == 0b0001)
+  {
+    *pulseFlag = 0b0011;
+  }
+  else if (*pulseFlag == 0b0100)
+  {
+    *pulseFlag = 0b1100;
+  }
+  else if (*pulseFlag == 0b0111)
+  {
+    *setValue = *setValue - pow (10, *posValue);
+    *pulseFlag = 0;
+  }
+  else if (*pulseFlag == 0b1101)
+  {
+    *setValue = *setValue + pow (10, *posValue);
+    *pulseFlag = 0;
+  }
+  else if (*pulseFlag == 0b0101)
+  {
+    *pulseFlag = 0;
+  }
+  else
+  {
+    return;
+  }
+}
+*/
+
+
+
