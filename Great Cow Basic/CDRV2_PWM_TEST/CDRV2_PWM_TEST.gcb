@@ -1,0 +1,96 @@
+; ----- Config
+  #chip 16F1788, 8  'orginal 4Mhz
+
+
+
+#define PWM_PIN  PORTA.1   'Pin3
+'#define PWM_Delay 350 us
+#define J4 PORTC.6
+#define J3 PORTC.5
+
+  #define SendAHigh Set PORTB.7 ON  'Pin28 (PGD)
+  #define SendALow  Set PORTB.7 Off 'Pin28 (PGD)
+  #define RecAHigh PORTB.6 ON       'Pin27 (PGC)
+  #define RecALow PORTB.6 OFF       'Pin27 (PGC)
+  InitSer  1, r9600, 1+WaitForStart, 8, 1, None, Normal
+
+  Dir PORTB.7 Out   'Pin28 (PGD)
+  Dir PORTB.6 In    'Pin27 (PGC)
+
+Dir PORTA.1 Out 'Gate PWM
+Dir PORTB.5 In  'Duty cycle pot
+Dir PORTB.4 In  'cycle pot
+Dir PORTC.6 In 'force on
+Dir PORTC.5 In 'button for serial send
+
+dim duty as long
+dim time as long
+dim AN13_read as long
+dim AN11_read as long
+dim ton as long
+dim toff as long
+
+Do Forever
+'duty = 0
+'time = 0
+  AN13_read = ReadAD12(AN13)
+  AN11_read = ReadAD12(AN11)
+  duty  = (AN13_read * 24400) / 1000000
+  time  = (AN11_read * 24400) / 1000000
+  'duty  = scale(ReadAD(AN13), 0, 255, 0, 100)
+  'time = scale(ReadAD(An11), 0, 255, 0, 100)
+  ton = (duty * time) / 100
+  toff = time - ton
+If J3 = OFF Then
+
+      SerPrint 1, "AN13 "
+      SerPrint 1, AN13_read
+      SerSend 1, 13
+      SerSend 1, 10
+      SerPrint 1, "AN11 "
+      SerPrint 1, AN11_read
+      SerSend 1, 13
+      SerSend 1, 10
+      SerPrint 1, "Ton "
+      SerPrint 1, ton
+      SerSend 1, 13
+      SerSend 1, 10
+      SerPrint 1, "Toff "
+      SerPrint 1, toff
+      SerSend 1, 13
+      SerSend 1, 10
+      SerPrint 1, "Duty "
+      SerPrint 1, duty
+      SerSend 1, 13
+      SerSend 1, 10
+      SerPrint 1, "Time "
+      SerPrint 1, time
+      SerSend 1, 13
+      SerSend 1, 10
+End If
+
+If J4 = OFF Then
+  PWM_PIN = on
+
+Else
+
+  PWM_PIN = on
+  wait ton ms
+  PWM_PIN = off
+  wait toff ms
+
+
+End if
+          'If J4 = OFF Then
+          'PWM_PIN = ON
+          'Else
+          'duty = ReadAD(AN13)
+          'cycle = 1
+          '  PWMOut(1, duty, cycle)
+            'wait 1 ms
+            'Serprint 1, "D:" duty
+            'Serprint 1, " C:" cycle
+          'End If
+
+
+Loop

@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Compilation Report</title>
+</head>
+<body>
+<h1>Compilation Report</h1>
+<p>Compiler Version (YYYY-MM-DD): 0.98.06 2019-06-12 (Windows 32 bit)</p>
+<h2>Compilation time</h2>
+<p> (Compile time: 1.71875 seconds)</p>
+<p> (Assembly time: 0.265625 seconds)</p>
+<p> (Download time: 4.3125 seconds)</p>
+<p> (Total time: 6.296875 seconds)</p>
+<h2>Chip resource usage:</h2>
+<p>Chip Model: 16F1788</p>
+<p>Program Memory: 3009/16384 words (18,37%)</p>
+<p>RAM: 135/2048 bytes (6,59%)</p>
+<h2>RAM Allocation</h2>
+<table border="1">
+</table>
+<h2>Subroutines</h2>
+<table border="1">
+<tr><th>Name</th><th>Code Size (lines)</th><th>Compiled Size (words)</th><th>Page</th><th>Outgoing calls</th></tr>
+<tr><td>Main</td><td>244</td><td>1108</td><td>1</td><td>SYSCOMPLESSTHAN16(1), SYSCOMPLESSTHAN(9), SYSCOMPLESSTHAN32(20), CALL_MEAS_B1_B2(1), Delay_S(5), Delay_MS(9), STOPTIMER(1), CALL_LCD(1), CALL_DIFF(1), CALL_NTC(1), STARTTIMER(2), CLEARTIMER(1), INITTIMER1(1), INITSER(1), INITSYS(107)</td></tr>
+<tr><td>CALL_MEAS_B1_B2</td><td>12</td><td>111</td><td>2</td><td>SYSDIVSUB32(2), STARTTIMER(1), READAD12(2), STOPTIMER(1)</td></tr>
+<tr><td>CALL_NTC</td><td>13</td><td>146</td><td>2</td><td>SYSMULTSUB16(1), SYSREADSTRING(1), SYSDIVSUB16(1), SYSCOMPLESSTHAN16(1), Delay_MS(1), SERPRINT(1), SERPRINT(1), SERSEND(2), READAD(2)</td></tr>
+<tr><td>CALL_DIFF</td><td>12</td><td>183</td><td>1</td><td>SYSREADSTRING(1), SYSMULTSUB16(1), SYSDIVSUB16(2), SYSMULTSUB32(1), SYSCOMPLESSTHAN32(2), STARTTIMER(1), SERPRINT(1), SERPRINT(1), STOPTIMER(1)</td></tr>
+<tr><td>CALL_LCD</td><td>0</td><td>1</td><td>1</td><td></td></tr>
+<tr><td>READAD</td><td>59</td><td>183</td><td>1</td><td>Delay_10US(1)</td></tr>
+<tr><td>READAD12</td><td>41</td><td>189</td><td>1</td><td>Delay_10US(1)</td></tr>
+<tr><td>INITSER</td><td>32</td><td>23</td><td>2</td><td>Delay_MS(1)</td></tr>
+<tr><td>SERSEND</td><td>76</td><td>222</td><td>1</td><td>SERBITDELAY(11), SERCFGLOAD(1)</td></tr>
+<tr><td>SERPRINT</td><td>14</td><td>39</td><td>2</td><td>SERSEND(1)</td></tr>
+<tr><td>SERPRINT</td><td>35</td><td>149</td><td>2</td><td>SYSDIVSUB16(4), SYSCOMPLESSTHAN16(4), SERSEND(5)</td></tr>
+<tr><td>SERCFGLOAD</td><td>31</td><td>20</td><td>2</td><td></td></tr>
+<tr><td>SERBITDELAY</td><td>31</td><td>124</td><td>2</td><td></td></tr>
+<tr><td>STARTTIMER</td><td>143</td><td>15</td><td>2</td><td></td></tr>
+<tr><td>CLEARTIMER</td><td>148</td><td>22</td><td>2</td><td></td></tr>
+<tr><td>STOPTIMER</td><td>131</td><td>15</td><td>2</td><td></td></tr>
+<tr><td>INITTIMER1</td><td>84</td><td>50</td><td>1</td><td></td></tr>
+<tr><td>INITSYS</td><td>702</td><td>21</td><td>1</td><td></td></tr>
+<tr><td>SYSREADSTRING</td><td>101</td><td>16</td><td>2</td><td>SysStringTables(1)</td></tr>
+<tr><td>SYSMULTSUB16</td><td>73</td><td>36</td><td>2</td><td>SYSCOMPLESSTHAN16(1)</td></tr>
+<tr><td>SYSMULTSUB32</td><td>43</td><td>69</td><td>2</td><td>SYSCOMPLESSTHAN32(1)</td></tr>
+<tr><td>SYSDIVSUB16</td><td>38</td><td>52</td><td>2</td><td>SYSCOMPEQUAL16(1)</td></tr>
+<tr><td>SYSDIVSUB32</td><td>40</td><td>94</td><td>2</td><td>SYSCOMPEQUAL32(1)</td></tr>
+<tr><td>SYSCOMPEQUAL16</td><td>34</td><td>11</td><td>2</td><td></td></tr>
+<tr><td>SYSCOMPEQUAL32</td><td>52</td><td>19</td><td>2</td><td></td></tr>
+<tr><td>SYSCOMPLESSTHAN</td><td>23</td><td>7</td><td>2</td><td></td></tr>
+<tr><td>SYSCOMPLESSTHAN16</td><td>38</td><td>15</td><td>2</td><td></td></tr>
+<tr><td>SYSCOMPLESSTHAN32</td><td>63</td><td>25</td><td>2</td><td></td></tr>
+<tr><td>Delay_10US</td><td>0</td><td>8</td><td>2</td><td></td></tr>
+<tr><td>Delay_MS</td><td>0</td><td>14</td><td>2</td><td></td></tr>
+<tr><td>Delay_S</td><td>0</td><td>8</td><td>2</td><td>Delay_MS(1)</td></tr>
+<tr><td>SysStringTables</td><td>0</td><td>14</td><td>2</td><td></td></tr>
+</table>
+</body>
+</html>
