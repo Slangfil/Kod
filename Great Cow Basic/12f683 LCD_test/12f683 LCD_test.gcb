@@ -1,0 +1,20 @@
+#Chip 12F683, 8
+   #Config OSC = INTOSCIO', MCLRE = Off
+
+   #define I2C_MODE Master
+   #define I2C_DATA GPIO.0
+   #define I2C_CLOCK GPIO.1
+   #define I2C_DISABLE_INTERRUPTS ON
+   #define LCD_IO 10
+   #define LCD_I2C_Address_1 0x7E
+
+   'Frequency Signal input >  GP5/T1CK1/PIN2
+
+    locate 0,0: print "test"
+    locate 1,0: print "test2"
+
+  Sub Clearline (In LCD_TMP)
+    Locate LCD_TMP,0
+    LCDSPACE 19
+    Locate LCD_TMP,0
+  End Sub

@@ -1,0 +1,490 @@
+'
+'
+'Timer1 = 16bit 2bit prescaler
+'0.44655V per Bit
+'fullscale:29.26V (33K & 6.8K)
+'On  13.0/26V
+'Typ 13.5/27V
+'Max 13.7/27.4V
+'AN3:Bult1
+'AN2:Bult2
+'Oversampling ADC 16Bit
+'n^4   12-16bit = 256ggr (summera 256ggr)
+'n^2   12-16bit = X/4 (dela summan med 64)
+
+
+
+; ----- Config
+  #chip 16F1788, 8  'orginal 4Mhz
+  '#config LVP = Off
+
+
+; LCD DEBUG
+  Dir PORTB.7 Out   'Pin28 (PGD)
+  Dir PORTB.6 In    'Pin27 (PGC)
+
+; Config UART
+  #define SendAHigh Set PORTB.7 ON  'Pin28 (PGD)
+  #define SendALow  Set PORTB.7 Off 'Pin28 (PGD)
+  #define RecAHigh PORTB.6 ON       'Pin27 (PGC)
+  #define RecALow PORTB.6 OFF       'Pin27 (PGC)
+  InitSer  1, r9600, 1+WaitForStart, 8, 1, None, Normal
+
+  ''''''' INTERRUPT HANDLING
+  InitTimer1 Osc, Ps1_1/4   'orginal 1/0
+  'On Interrupt Timer1Overflow Call Tidsbas1   ' Ta bort
+  On Interrupt Timer1Overflow Call call_Meas_B1_B2
+  ClearTimer 1
+  StartTimer 1
+
+; ----- DEFINE
+  #define LED       PortB.3   'Pin24
+  #define J2        PortC.4   'Pin15
+  #define J3        PortC.5   'Pin16
+  #define J4        PortC.6   'Pin17
+  #define Gate      PortA.1   'Pin3
+
+  '0V--->-----------13.50V-----ON----16.00V---|->----------27.50V----ON----29.10V------>|OVERVOLTAGE|
+  '|            12VOLT SYSTEM                 |               24 VOLT SYSTEM                       |ABSOLUTE MAX 29,26V
+  '0V---<---12.80V----ON-----15.50V---------<-|-----25.60V----ON---29.00V--------------<|OVERVOLTAGE|
+
+  ''''''' 12VOLT SYSTEM
+  #define 12V_LOW     28669 '12.80V MOSFET OFF
+  #define 12V_MIDLOW  30237 '13.50V MOSFET ON
+  #define 12V_MIDHIGH 34716 '15.50V MOSFET ON
+  #define 12V_HIGH    35836 '16.00V MOSFET OFF
+  ''''''' 24VOLT SYSTEM
+  #define 24V_LOW     57338 '25.60V MOSFET OFF
+  #define 24V_MIDLOW  61593 '27.50V MOSFET ON
+  #define 24V_MIDHIGH 64952 '29.00V MOSFET ON
+  #define 24V_HIGH    65064 '29.05V MOSFET OFF
+  ''''''' ERROR HANDLING
+  #define Overvoltage 65333 '29.17V  MOSFET OFF
+  #define OverTemp    205 '
+  '#define Overcurrent 100 ' 100amp 'PM 200515
+  '#define Overcurrent_shutdown  200 '200amp PM 200515
+
+
+
+  ''''''' DIMENSION
+  Dim Tid0    As Word
+  Dim Tid1    As Word
+  Dim Ntc     As Word
+  Dim NtcX     As Word
+  Dim NtcAverage  As Word
+  Dim Bult1   As long
+  Dim Bult2   As long
+  Dim A_Bult1 As long
+  Dim A_Bult2 As Long
+  Dim B_Bult1 As Long
+  Dim B_Bult2 As Long
+  Dim C_Bult1 As Long
+  Dim C_Bult2 As Long
+  Dim Diff    As Long
+  Dim A_Diff  As Long
+  Dim gate_set As byte
+  Dim varA As Byte
+  Dim Diffivar As Word
+  Dim Diffivar2 As Word
+  Dim rds6 As Word
+  Dim Overcurrent As Long '100 ' 100amp
+  Dim Overcurrent_shutdown As Long '  200 '200amp
+
+
+
+
+  ''''''' PORT DIRECTION
+  Dir PORTA.12 In 'NTC 47K + 1K8 ANALOG 10bit  Pin21
+  Dir PORTA.3 In  'Bult 1 ANALOG 12bit        Pin4
+  Dir PORTA.2 In  'Bult 2 ANALOG 12bit        Pin5
+  Dir PORTB.3 Out 'LED                        Pin24
+  Dir PORTC.4 In  'J2                         Pin15
+  Dir PORTC.5 In  'J3                         Pin16
+  Dir PORTC.6 In  'J4                         Pin17
+  Dir PORTA.1 Out 'Gate signal                Pin3
+
+  ''''''' SETUP
+  Ntc = 0
+  Tid0 = 0
+  Tid1 = 0
+  Diffivar2 = 0
+  Diff = 0
+set led off
+set gate off
+
+  ''''''' START ''''''
+Start:
+
+ set led on
+
+  Diffivar2 = 0
+  Diff = 0
+  Ntc = 0
+  If Gate = Off Then Set LED Off
+  If Gate = On Then Set LED On
+  'Call_Meas_B1_B2
+
+   Call_Ntc
+   Diffivar2 = 0    '3Maj test
+   Call_Diff
+   Call_Lcd
+
+
+  wait 200 ms '120ms ,kritisk tid p.g.a over_current mätningen
+
+  'Diff 200 motsvarar ungefär 200Amp
+  ''''If Diff > Overcurrent And Gate = On Then Goto over_current
+  'If Diffivar2 > Overcurrent_instoff And Gate = On Then Goto Over_current_inst_off
+  'If Diffivar2 > Overcurrent_total_shutdown And Gate = On Then Goto over_current_tot_shutdown
+  If Diffivar2 > Overcurrent_shutdown And Gate = On Then Goto over_current_shutdown
+  If Diffivar2 > Overcurrent And Gate = On Then Goto over_current
+
+
+
+
+
+  '> 4 träffar i rad krävs för att Overcurrent_total_shutdown ska lösa ut.
+  ' overcurrent
+  'octsdx2 = octsdx2 + 1
+  'If octsdx > 0 And octsdx2 > 4 Or octsdx2 > 4 Then
+  'octsdx = 0
+  'octsdx2 = 0
+  'End If
+
+
+  '> 10 träffar i rad krävs för att overcurrent ska lösa ut.
+  ' overcurrent
+  ocx2 = ocx2 + 1
+  If ocx > 0 And ocx2 > 10 Or ocx2 > 10 Then
+  ocx = 0
+  ocx2 = 0
+  End If
+
+  '> 20 träffar i rad krävs för att overcurrent_shutdown ska lösa ut.
+  ' overcurrent
+  ocsdx2 = ocsdx2 + 1
+  If ocsdx > 0 And ocsdx2 > 10 Or ocsdx2 > 10 Then
+  ocsdx = 0
+  ocsdx2 = 0
+  End If
+
+  '> 10 träffar i rad krävs för att overtemp ska lösa ut.
+  ' overtemp
+  otx2 = otx2 + 1
+  If otx > 0 And otx2 > 10 Or otx2 > 10 Then
+  otx = 0
+  otx2 = 0
+  End If
+
+
+
+
+
+  '''''''''' Ta bort???? Call_CheckCurrent (Diff, VarA)
+
+  If Ntc < Overtemp And Gate = On then Goto Over_Temp
+  If J2 = Off And J3 = On Then Goto OnOff
+  If J2 = Off And J3 = Off Then goto Override
+  If J2 = On And J3 = Off Then goto Override
+  'If J4 = Off And B_Bult2 >= B_Bult1 Then goto uni
+  'If J4 = Off And B_Bult2 < 10 Then goto uni
+
+  If B_Bult1 > Overvoltage And B_Bult2 > Overvoltage Then Goto Voltage_error
+
+
+  '12V system
+  If B_Bult1 > 12V_LOW And B_Bult1 < 12V_HIGH And Gate = On Then Goto Bult1_12V'
+  If B_Bult1 > 12V_MIDLOW AND B_Bult1 <= 12V_MIDHIGH Then goto Bult1_12V'
+
+  If B_Bult2 > 12V_LOW And B_Bult2 < 12V_HIGH And Gate = On And J4 = On Then goto Bult2_12V'
+  If B_Bult2 > 12V_MIDLOW AND B_Bult2 <= 12V_MIDHIGH And J4 = On Then goto Bult2_12V'
+
+
+  '24V system
+  If B_Bult1 > 24V_LOW And B_Bult1 < 24V_HIGH And Gate = On Then goto Bult1_24V'
+  If B_Bult1 > 24V_MIDLOW And B_Bult1 <= 24V_MIDHIGH Then goto Bult1_24V'
+
+  If B_Bult2 > 24V_LOW And B_Bult2 < 24V_HIGH And Gate = On And J4 = On Then goto Bult2_24V'
+  If B_Bult2 > 24V_MIDLOW And B_Bult2 <= 24V_MIDHIGH And J4 = On Then goto Bult2_24V'
+
+  'Om spänningen sjunker under minimum på sekundärsidan när primärsidan fortfarande
+  'ligger bra, fortsätt som vanligt. Detta om Bult 2 är primär.
+  'If B_Bult1 < 24V_LOW And B_Bult2 > 24V_LOW And B_Bult2 < 24V_HIGH Then goto Bult2_24V '
+
+  'Om bult 1 är primär
+  'If B_Bult2 < 24V_LOW And B_Bult1 > 24V_LOW And B_Bult1 < 24V_HIGH Then goto Bult1_24V '
+
+  'If B_Bult1 > Overvoltage Then Goto range_error'
+  'If B_Bult2 > Overvoltage Then Goto range_error'
+
+  goto range_error
+
+  'Wait 50 ms ' orginal 100 ms
+  'Goto start
+
+OnOff:
+  Set Gate On
+  wait 500 ms
+  goto start
+
+Override:
+  Set gate Off
+  wait 500 ms
+  Goto start
+
+ Goto Start
+
+uni:  ' ta' bort?
+  Set Gate Off
+  Set LED Off
+  wait 100 ms
+  Goto start
+
+
+Bult1_12V:
+  Set Gate On
+  Set LED On
+  Overcurrent = 200 ' 100amp
+  Overcurrent_shutdown  = 300 '200amp
+  goto Start
+
+Bult2_12V:
+  Set Gate On
+  Set LED On
+  If J4 = Off then Set Gate Off
+  Set Led Off
+  Overcurrent = 200 ' 100amp
+  Overcurrent_shutdown  = 300 '200amp
+  goto Start
+
+Bult1_24V:
+  Set Gate On
+  Set LED On
+  Overcurrent = 100 ' 100amp
+  Overcurrent_shutdown  = 200 '200amp
+  goto Start
+
+Bult2_24V:
+  Set Gate On
+  Set LED On
+  Overcurrent = 100 ' 100amp
+  Overcurrent_shutdown  = 200 '200amp
+  If J4 = Off then Set Gate Off : Set Led Off
+  goto Start
+
+range_error:  ' Led blinkar 10ggr on:250ms off:250ms
+  Set gate Off
+  Set Led Off
+  wait 200 ms
+  Repeat 3
+  Set LED Off
+  wait 100 ms
+  Set Led On
+  Wait 100 ms
+  End Repeat
+  Goto Start
+
+over_current:   ' > 10 träffar ger error
+  ocx = ocx + 1
+  if ocx > 10 Then
+  ocx = 0
+  Set Gate Off
+  Set LED off
+  wait 1 s
+  End if
+  Goto Start
+
+over_current_shutdown:   ' > 10 träffar ger error
+  ocsdx = ocsdx + 1
+  if ocsdx > 10 Then
+  ocsdx = 0
+  Set Gate Off
+  Set LED off
+
+  StopTimer 1
+  wait 15 s
+  StartTimer 1
+
+  End if
+  'StopTimer 1
+  Goto Start
+  'Goto over_current_shutdown
+
+
+Over_Temp:    ' Led blinkar 10ggr on:500ms off:500ms  Set gate Off
+  otx = otx + 1
+  if otx > 10 Then
+  otx = 0
+
+  'If Gate On Then
+  set gate off
+  Repeat 10
+  Set Led Off
+  wait 200 ms
+  Set Led On
+  Wait 200 ms
+  End Repeat
+  wait 2 s
+  End if
+  Goto Start
+
+
+Voltage_error: ' Led blinkar 30ggr on:1s off:1s & Gate = On
+                'för att förhindra error vid första starten.
+  If Gate On Then
+  Repeat 4
+  Set Gate off
+  Set Led Off
+  wait 1 s
+  Set Gate On
+  Set Led On
+   wait 2 s
+  End Repeat
+  end if
+  Goto Start
+
+goto Start
+
+  ' *******Subrutiner**********
+
+sub call_Meas_B1_B2
+
+  StopTimer 1
+
+  repeat 256
+  'repeat 128
+  Bult1 = ReadAD12(AN3)
+  Bult2 = ReadAD12(AN2)
+  A_Bult1 = A_Bult1 + Bult1
+  A_Bult2 = A_Bult2 + Bult2
+  End Repeat
+  B_Bult1 = A_Bult1 / 16
+  B_Bult2 = A_Bult2 / 16
+  A_Bult1 = 0
+  A_Bult2 = 0
+  'Call_Diff
+  'Call_Ntc
+
+  StartTimer 1
+End sub
+
+
+sub Call_Ntc
+  Ntc = ReadAD(AN12)
+  NtcX = ReadAD(AN12)
+  NtcAverage = (NtcX + Ntc) / 2
+  Ntc = NtcAverage
+
+  SerSend 1, 254  ' "kommando"
+  SerSend 1, 1  ' "Clr"
+  wait 10 ms
+  SerPrint 1, "T:"
+  SerPrint 1, Ntc
+
+  'rds6 = (255-Ntc) * 3 + 227
+  'if ntc < 243 Then rds6 = rds6 - (243 - Ntc)
+
+  rds6 = (255-Ntc) * 3 + 227
+  'if ntc < 225 Then rds6 = rds6 - (243 - Ntc)
+  if ntc < 205 Then rds6 = rds6 - (243 - Ntc)
+
+  'if ntc < 242 Then rds6 = (255-Ntc) * 3 + 227 - 1
+  'if ntc < 239 Then rds6 = (255-Ntc) * 3 +    Case  150 To 165: rds6 = 350 '120°C 390
+  'Case  178 To 193: rds6 = 330 '100°C 312
+  'Case  194 To 205: rds6 = 320 '90°C  273
+  'Case  206 To 216: rds6 = 310 '80°C  234
+  'Case  217 To 225: rds6 = 300 '70°C  195
+  'Case  225 : rds6 = 311 ' 60
+  'Case  226 : rds6 = 308 ' 59
+  'Case  227 : rds6 = 305 ' 58
+  'Case  228 : rds6 = 302 ' 56 - 57
+  'Case  229 : rds6 = 299 ' 55
+  'Case  230 : rds6 = 296 ' 54
+  'Case  231 : rds6 = 293 ' 52 - 53
+  'Case  232 : rds6 = 290 ' 51
+  'Case  233 : rds6 = 287 ' 50
+  'Case  234 : rds6 = 284 ' 48 - 49       :Cu = 12
+  'Case  235 : rds6 = 281 ' 46 - 47
+  'Case  236 : rds6 = 278 ' 45
+  'Case  238 : rds6 = 272 ' 41 - 42
+  'Case  239 : rds6 = 267 ' 39 - 40
+  'Case  240 : rds6 = 263 ' 38            :Cu = 8
+  'Case  241 : rds6 = 260 ' 35 - 37
+  'Case  242 : rds6 = 260 ' 33 - 34
+  'Case  243 : rds6 = 256 ' 31 - 32
+  'Case  244 : rds6 = 256 ' 28 - 30
+  'Case  245 : rds6 = 256 ' 26 - 27
+  'Case  246 : rds6 = 255 ' 23 - 25       :Cu = 4
+  'Case  247 : rds6 = 252 ' 20 - 22
+  'Case  248 : rds6 = 249 ' 16 - 19       :Cu = 1
+  'Case  249 : rds6 = 246 ' 12 - 15
+  'Case  250 : rds6 = 243 ' 7 - 11
+  'Case  251 : rds6 = 240 ' 1 - 6         :Cu = 4
+  'Case  252 : rds6 = 236 ' -6 till 0
+  'Case  253 : rds6 = 233 ' -16 till -7   :Cu = 8
+  'Case  254 : rds6 = 230 ' -36 till -17
+  'Case  255 : rds6 = 227 ' -37
+ 'End Select
+
+End sub
+
+sub Call_Diff
+
+  StopTimer 1
+  If B_Bult1 > B_Bult2 Then Diff = B_Bult1 - B_Bult2 'Test a
+  If B_Bult2 > B_Bult1 Then Diff = B_Bult2 - B_Bult1 'Test a
+  Diffivar = Diff * 127 + 727
+  'Diffivar2 = Diffivar / 100
+  Diffivar2 = ((Diffivar /100) * 250) / rds6
+  SerPrint 1, " D:"
+  Serprint 1, Diffivar2
+  StartTimer 1
+End sub
+
+sub Call_Lcd ' Ta bort
+  'Diffivar = Diff * 127 + 727
+  'Diffivar2 = Diffivar / 100
+  '''Serprint 1, " D:"
+  '''Serprint 1, Diffivar2
+  'SerSend 1, 254  ' "kommando"
+  'SerSend 1, 192  ' "rad två"
+  'wait 1 ms
+  'SerPrint 1, "1:"
+  'SerPrint 1, B_Bult1
+  'wait 1 ms 'debug orginal:10ms
+  'SerPrint 1, " 2:"
+  'SerPrint 1, B_Bult2
+End sub
+
+
+Sub Tidsbas1 ' Ta bort
+  tid0 = tid0 + 1
+  if tid0 < 10 Then goto blask 'debug orginal 10
+  if tid0 >= 10 Then 'debug orginal 10
+  tid0 = 0
+
+  Call_Ntc
+  Call_Diff
+  Call_Lcd
+  'Call_Meas_B1_B2
+
+  end if
+blask:
+End Sub
+
+
+Sub Call_CheckCurrent (Diff, VarA) ' Ta bort
+'Diff = 41
+If Diff > 40 And Diff < 500 And Gate = On Then '
+VarA++
+Else
+VarA = 0
+End If
+
+If VarA > 2 Then  'orginal 2
+  Set Gate Off
+  Set LED off
+  Wait 200 ms '500 ms orginal
+  VarA = 0
+End If
+End Sub
